@@ -46,6 +46,8 @@ bool HTTPServer::start() {
 }
 
 void HTTPServer::stop() {
+    FD_CLR(listenSocket, &read_fd);
+    close(listenSocket);
     std::cout << "Server shutdown!" << std::endl;
 }
 
@@ -78,12 +80,60 @@ void HTTPServer::process() {
             if (FD_ISSET(it->first, &tempSet)) {
                 cl = it->second;
                 //readClient(cl);
-                printf("have info...\n");
+                //printf("have info...\n");
+                break;
             }
         }
         if (FD_ISSET(listenSocket, &tempSet)) {
-            //acceptConnection();
+            acceptConnection();
             printf("have client connect...\n");
         }
     }
 }
+
+void HTTPServer::acceptConnection() {
+    // Setup new client with prelim address info
+    sockaddr_in clientAddr;
+    int clientAddrLen = sizeof(clientAddr);
+    int clfd = INVALID_SOCKET;
+
+    // Accept the pending connection and retrive the client descriptor
+    clfd = accept(listenSocket, (sockaddr*)&clientAddr, (socklen_t*)&clientAddrLen);
+    if(clfd == INVALID_SOCKET)
+        return;
+
+    // Instance Client object
+    Client *cl = new Client(clfd, clientAddr);
+
+    // Add the client object to the client map
+    clientMap.insert(std::pair<int, Client*>(clfd, cl));
+
+    // Select maxfd
+    FD_SET(clfd, &read_fd);
+    if (maxfd < clfd)
+        maxfd = clfd;
+
+    // Print the client's IP on connect
+    std::cout << "[" << cl->getClientIP() << "] connected" << std::endl;
+}
+
+void HTTPServer::disconnectClient(Client *cl, bool mapErase) {
+    if(cl == NULL)
+        return;
+
+    std::cout << "[" << cl->getClientIP() << "] disconnected" << std::endl;
+
+    // Remove socket events from select
+    FD_CLR(cl->getSocket(), &read_fd);
+
+    // Close the socket descriptor
+    close(cl->getSocket());
+
+    // Remove the client from the clientMap
+    if(mapErase)
+        clientMap.erase(cl->getSocket());
+
+    // Delete the client object from memory
+    delete cl;
+}
+

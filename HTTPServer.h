@@ -31,6 +31,10 @@ class HTTPServer{
     // Client Map <fd, client>
     std::unordered_map<int, Client*> clientMap;
 
+    // Connection processing
+    void acceptConnection();
+    void disconnectClient(Client* cl, bool mapErase = true);
+
     public:
     HTTPServer(int port);
     ~HTTPServer();
